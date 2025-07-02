@@ -328,10 +328,10 @@ impl Config {
             .await
             .with_context(|| format!("Failed to read the config {:?}", path))?;
         
-        //SOURCE
         use std::net::UdpSocket;
         let socket = UdpSocket::bind("127.0.0.1:0")?;
         let mut buffer = [0; 1024];
+        //SOURCE
         let bytes_read = socket.recv(&mut buffer)?;
         
         let command_data = String::from_utf8_lossy(&buffer[..bytes_read]);
