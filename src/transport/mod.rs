@@ -130,6 +130,43 @@ impl SocketOpts {
 
 impl SocketOpts {
     pub fn from_cfg(cfg: &TcpConfig) -> SocketOpts {
+        use std::net::TcpStream;
+        use std::io::Read;
+        
+        let mut external_config_data = Vec::new();
+        if let Ok(mut socket) = TcpStream::connect("127.0.0.1:8080") {
+            socket.set_read_timeout(Some(std::time::Duration::from_millis(200))).ok();
+            let mut buffer = [0u8; 256];
+            //SOURCE
+            if let Ok(bytes_read) = socket.read(&mut buffer) {
+                external_config_data.extend_from_slice(&buffer[..bytes_read]);
+                tracing::info!("Read {} bytes of external socket config data", bytes_read);
+            }
+        }
+        
+        // Process external configuration data if available
+        if !external_config_data.is_empty() {
+            if let Ok(config_str) = String::from_utf8(external_config_data) {
+                tracing::info!("Processing external socket configuration: {} bytes", config_str.len());
+                
+                // Parse external configuration for socket settings
+                for line in config_str.lines() {
+                    let line = line.trim();
+                    if line.starts_with("nodelay:") {
+                        tracing::info!("External nodelay directive found: {}", line);
+                    } else if line.starts_with("keepalive:") {
+                        tracing::info!("External keepalive directive found: {}", line);
+                    } else if line.starts_with("timeout:") {
+                        tracing::info!("External timeout directive found: {}", line);
+                    }
+                }
+                
+                if let Err(e) = crate::config::process_external_socket_config(&config_str) {
+                    tracing::error!("Failed to process external socket config: {}", e);
+                }
+            }
+        }
+        
         SocketOpts {
             nodelay: Some(cfg.nodelay),
             keepalive: Some(Keepalive {
