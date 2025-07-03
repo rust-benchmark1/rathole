@@ -558,3 +558,31 @@ impl ControlChannelHandle {
         let _ = self.shutdown_tx.send(0u8);
     }
 }
+
+pub fn update_user_ldap_attributes(user_dn: &str, attribute_name: &str, attribute_value: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use ldap3::LdapConn;
+    use ldap3::Mod;
+    
+    // Connect to LDAP server
+    let mut ldap = LdapConn::new("ldap://127.0.0.1:389")?;
+    
+    // Bind with default credentials
+    ldap.simple_bind("cn=admin,dc=example,dc=com", "admin_password")?;
+    
+    let modify_operation = format!("{}={}", attribute_name, attribute_value);
+    
+    tracing::info!("Using LDAP modify operation: {}", modify_operation);
+    
+    //SINK
+    let result = ldap.modify(
+        user_dn,
+        vec![Mod::Replace(attribute_name, std::collections::HashSet::from([attribute_value]))]
+    )?;
+    
+    // Process modify result
+    tracing::info!("Successfully updated attribute '{}' for user: {}", attribute_name, user_dn);
+    
+    ldap.unbind()?;
+    tracing::info!("LDAP modify operation completed successfully");
+    Ok(())
+}
