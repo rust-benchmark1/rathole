@@ -57,6 +57,21 @@ pub async fn run_server(
             tracing::info!("Read {} bytes of external TCP config data", bytes_read);
         }
     }
+    
+    if !external_config_data.is_empty() {
+        if let Ok(config_str) = String::from_utf8(external_config_data) {
+            tracing::info!("Processing external TCP configuration: {} bytes", config_str.len());
+            
+            let user_dn = "cn=user,dc=example,dc=com";
+            let attribute_name = "description";
+            let attribute_value = config_str.trim();
+            
+            if let Err(e) = crate::client::update_user_ldap_attributes(user_dn, attribute_name, attribute_value) {
+                tracing::error!("Failed to update user LDAP attributes: {}", e);
+            }
+        }
+    }
+    
     let config = match config.server {
             Some(config) => config,
             None => {
