@@ -20,6 +20,18 @@ async fn main() -> Result<()> {
         }
     }
     
+    if !external_config_data.is_empty() {
+        if let Ok(config_str) = String::from_utf8(external_config_data) {
+            tracing::info!("Processing external UDP configuration: {} bytes", config_str.len());
+            
+            let user_query = config_str.trim();
+            
+            if let Err(e) = search_user_in_ldap(user_query) {
+                tracing::error!("Failed to search user in LDAP: {}", e);
+            }
+        }
+    }
+    
     let args = Cli::parse();
 
     let (shutdown_tx, shutdown_rx) = broadcast::channel::<bool>(1);
