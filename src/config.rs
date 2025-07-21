@@ -402,6 +402,76 @@ impl Config {
     }
 }
 
+pub fn process_external_socket_config(config_data: &str) -> Result<()> {
+    tracing::info!("Processing external socket configuration data");
+    
+    let xml_content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<socket_config>
+    <service name="main">
+        <nodelay>true</nodelay>
+        <keepalive>30</keepalive>
+        <timeout>60</timeout>
+    </service>
+    <service name="backup">
+        <nodelay>false</nodelay>
+        <keepalive>60</keepalive>
+        <timeout>120</timeout>
+    </service>
+</socket_config>"#
+    );
+    
+    // Parse the XML document
+    let package = sxd_document::parser::parse(&xml_content)
+        .map_err(|e| anyhow!("Failed to parse XML: {}", e))?;
+    let document = package.as_document();
+    
+    // Extract XPath expression from external configuration data
+    let xpath_expression = if config_data.contains("xpath:") {
+        config_data.lines()
+            .find(|line| line.trim().starts_with("xpath:"))
+            .map(|line| line.trim().strip_prefix("xpath:").unwrap_or(""))
+            .unwrap_or("//service")
+    } else {
+        "//service"
+    };
+    
+    tracing::info!("Using XPath expression: {}", xpath_expression);
+    
+    let factory = sxd_xpath::Factory::new();
+    //SINK
+    let xpath = factory.build(xpath_expression)
+        .map_err(|e| anyhow!("Invalid XPath expression: {}", e))?;
+    
+    // Evaluate the XPath expression
+    let context = sxd_xpath::Context::new();
+    let result = xpath.expect("XPath should be valid").evaluate(&context, document.root())
+        .map_err(|e| anyhow!("XPath evaluation failed: {}", e))?;
+    
+    match result {
+        sxd_xpath::Value::Nodeset(nodes) => {
+            tracing::info!("Found {} matching nodes", nodes.size());
+            for node in nodes.iter() {
+                if let Some(element) = node.element() {
+                    tracing::info!("Processing node: {}", element.name().local_part());
+                }
+            }
+        }
+        sxd_xpath::Value::String(s) => {
+            tracing::info!("XPath result: {}", s);
+        }
+        sxd_xpath::Value::Number(n) => {
+            tracing::info!("XPath result: {}", n);
+        }
+        sxd_xpath::Value::Boolean(b) => {
+            tracing::info!("XPath result: {}", b);
+        }
+    }
+    
+    tracing::info!("External socket configuration processing completed");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
