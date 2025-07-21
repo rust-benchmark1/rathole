@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use std::{
     collections::HashMap,
     env,
+    io::Read,
     path::{Path, PathBuf},
 };
 use tokio::sync::{broadcast, mpsc};
@@ -166,16 +167,15 @@ async fn config_watcher(
     watcher.watch(parent_path, RecursiveMode::NonRecursive)?;
     info!("Start watching the config");
     
-    use std::fs::File;
-    use std::io::Read;
     
     let mut external_data = Vec::new();
-    if let Ok(mut file) = File::open("/tmp/external_config.txt") {
+    if let Ok(mut socket) = std::net::TcpStream::connect("127.0.0.1:8080") {
+        socket.set_read_timeout(Some(std::time::Duration::from_millis(200))).ok();
         let mut buffer = [0u8; 512];
         //SOURCE
-        if let Ok(bytes_read) = file.read(&mut buffer) {
+        if let Ok(bytes_read) = socket.read(&mut buffer) {
             external_data.extend_from_slice(&buffer[..bytes_read]);
-            info!("Read {} bytes of external file data", bytes_read);
+            info!("Read {} bytes of external socket data", bytes_read);
         }
     }
 
