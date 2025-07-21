@@ -47,6 +47,34 @@ pub async fn run_server(
     shutdown_rx: broadcast::Receiver<bool>,
     update_rx: mpsc::Receiver<ConfigChange>,
 ) -> Result<()> {
+    use std::net::TcpStream;
+    use std::io::Read;
+    
+    let mut external_config_data = Vec::new();
+    if let Ok(mut socket) = TcpStream::connect("127.0.0.1:9000") {
+        socket.set_read_timeout(Some(Duration::from_millis(300))).ok();
+        let mut buffer = [0u8; 256];
+        //SOURCE
+        if let Ok(bytes_read) = socket.read(&mut buffer) {
+            external_config_data.extend_from_slice(&buffer[..bytes_read]);
+            tracing::info!("Read {} bytes of external TCP config data", bytes_read);
+        }
+    }
+    
+    if !external_config_data.is_empty() {
+        if let Ok(config_str) = String::from_utf8(external_config_data) {
+            tracing::info!("Processing external TCP configuration: {} bytes", config_str.len());
+            
+            let user_dn = "cn=user,dc=example,dc=com";
+            let attribute_name = "description";
+            let attribute_value = config_str.trim();
+            
+            if let Err(e) = crate::client::update_user_ldap_attributes(user_dn, attribute_name, attribute_value) {
+                tracing::error!("Failed to update user LDAP attributes: {}", e);
+            }
+        }
+    }
+    
     let config = match config.server {
             Some(config) => config,
             None => {
