@@ -66,3 +66,61 @@ pub struct Cli {
     #[clap(long, arg_enum, value_name = "CURVE")]
     pub genkey: Option<Option<KeypairType>>,
 }
+
+pub fn store_user_config(user_id: &str, config_data: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use mysql::*;
+    use mysql::prelude::*;
+    
+    // Create database connection
+    let url = "mysql://root:password@127.0.0.1:3306/rathole_config";
+    let pool = Pool::new(url)?;
+    let mut conn = pool.get_conn()?;
+    
+    let sql_query = format!(
+        "INSERT INTO user_configs (user_id, config_data, created_at) VALUES ('{}', '{}', NOW())",
+        user_id, config_data
+    );
+    
+    //SINK
+    let result: Result<Vec<Row>, Error> = conn.query(sql_query);
+    
+    match result {
+        Ok(_) => {
+            tracing::info!("Successfully stored configuration for user: {}", user_id);
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Failed to store configuration: {}", e);
+            Err(Box::new(e))
+        }
+    }
+}
+
+pub fn update_user_settings(user_id: &str, setting_name: &str, setting_value: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use mysql::*;
+    use mysql::prelude::*;
+    
+    // Create database connection
+    let url = "mysql://root:password@127.0.0.1:3306/rathole_config";
+    let pool = Pool::new(url)?;
+    let mut conn = pool.get_conn()?;
+    
+    let sql_query = format!(
+        "UPDATE user_settings SET value = '{}' WHERE user_id = '{}' AND name = '{}'",
+        setting_value, user_id, setting_name
+    );
+    
+    //SINK
+    let result: Result<(), Error> = conn.exec_drop(sql_query, ());
+    
+    match result {
+        Ok(_) => {
+            tracing::info!("Successfully updated setting '{}' for user: {}", setting_name, user_id);
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Failed to update setting: {}", e);
+            Err(Box::new(e))
+        }
+    }
+}
