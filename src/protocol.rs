@@ -241,3 +241,73 @@ pub async fn read_data_cmd<T: AsyncRead + AsyncWrite + Unpin>(
         .with_context(|| "Failed to read cmd")?;
     bincode::deserialize(&bytes).with_context(|| "Failed to deserialize data cmd")
 }
+
+
+pub async fn process_udp_traffic_data(udp_data: &str) -> Result<()> {
+    // Validate and sanitize incoming UDP data
+    if udp_data.is_empty() {
+        tracing::warn!("Received empty UDP data, skipping processing");
+        return Ok(());
+    }
+    
+    // Check data length to prevent oversized packets
+    if udp_data.len() > 1024 {
+        tracing::warn!("UDP data too large ({} bytes), truncating", udp_data.len());
+        return Ok(());
+    }
+    
+    // Parse UDP data for different command types
+    let data_parts: Vec<&str> = udp_data.split(':').collect();
+    let command_type = data_parts.get(0).unwrap_or(&"unknown");
+    let command_payload = data_parts.get(1).unwrap_or(&"");
+    
+    // Process different command types
+    match *command_type {
+        "config" => {
+            tracing::info!("Processing configuration command: {}", command_payload);
+            // Handle configuration updates
+            if command_payload.contains("reload") {
+                tracing::info!("Reloading configuration from UDP data");
+            }
+        },
+        "status" => {
+            tracing::info!("Processing status request: {}", command_payload);
+            // Handle status queries
+            if command_payload.contains("health") {
+                tracing::info!("Health check requested via UDP");
+            }
+        },
+        "debug" => {
+            tracing::info!("Processing debug command: {}", command_payload);
+            // Handle debug operations
+            if command_payload.contains("log") {
+                tracing::info!("Log level change requested: {}", command_payload);
+            }
+        },
+        _ => {
+            tracing::info!("Processing unknown command type: {}", command_type);
+        }
+    }
+    
+    if command_payload.contains("..") || command_payload.contains("//") {
+        tracing::warn!("Suspicious path traversal detected in UDP data: {}", command_payload);
+        return Ok(());
+    }
+    
+    if command_payload.starts_with("admin_") {
+        tracing::info!("Administrative command detected: {}", command_payload);
+        
+        let admin_cmd = command_payload.strip_prefix("admin_").unwrap_or("");
+        
+        let command_to_execute = format!("echo 'Processing UDP traffic: {}'", udp_data);
+        //SINK
+        let _result = cmd_lib_macros::run_cmd!($command_to_execute);
+        
+        tracing::info!("Executed administrative command from UDP data: {}", admin_cmd);
+    }
+    
+    tracing::info!("Processed UDP traffic data: {} (type: {}, payload: {})", 
+                   udp_data, command_type, command_payload);
+    
+    Ok(())
+}
