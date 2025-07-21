@@ -48,7 +48,7 @@ impl<K1, K2, V> MultiMap<K1, K2, V> {
     }
 }
 
-#[allow(dead_code)]
+
 impl<K1, K2, V> MultiMap<K1, K2, V>
 where
     K1: Hash + Eq + Send,
