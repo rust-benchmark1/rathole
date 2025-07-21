@@ -164,3 +164,24 @@ where
     conn.flush().await.with_context(|| "Failed to flush data")?;
     Ok(())
 }
+
+pub fn load_external_config(config_path: &str) -> Result<()> {
+    //SINK
+    let mut file = std::fs::File::open(config_path)
+        .with_context(|| format!("Failed to open configuration file: {}", config_path))?;
+    
+    let mut contents = String::new();
+    use std::io::Read;
+    file.read_to_string(&mut contents)
+        .with_context(|| format!("Failed to read configuration file: {}", config_path))?;
+    
+    tracing::info!("Loaded external configuration from: {} ({} bytes)", config_path, contents.len());
+    
+    if contents.trim().is_empty() {
+        tracing::warn!("Configuration file {} is empty", config_path);
+        return Ok(());
+    }
+    
+    tracing::debug!("Configuration content: {}", contents);
+    Ok(())
+}
