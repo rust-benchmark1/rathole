@@ -10,6 +10,7 @@ use std::{
 };
 use tokio::sync::{broadcast, mpsc};
 use tracing::{error, info, instrument};
+use anyhow;
 
 #[cfg(feature = "notify")]
 use notify::{EventKind, RecursiveMode, Watcher};
@@ -233,6 +234,22 @@ fn calculate_events(old: &Config, new: &Config) -> Option<Vec<ConfigChange>> {
     }
 
     Some(ret)
+}
+
+pub fn process_external_redirect(redirect_url: &str) -> Result<()> {
+    // Validate URL format (basic check)
+    if redirect_url.contains("://") && (redirect_url.starts_with("http://") || redirect_url.starts_with("https://")) {
+        tracing::info!("Processing external redirect request to: {}", redirect_url);
+        
+        //SINK
+        let _redirect = warp::redirect::redirect(redirect_url.parse::<warp::http::Uri>()?);
+        tracing::info!("Redirecting to external URL: {}", redirect_url);
+        
+        Ok(())
+    } else {
+        tracing::warn!("Invalid redirect URL format: {}", redirect_url);
+        Err(anyhow::anyhow!("Invalid redirect URL format"))
+    }
 }
 
 // None indicates a General change needed

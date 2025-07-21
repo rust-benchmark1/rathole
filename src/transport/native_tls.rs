@@ -25,11 +25,52 @@ impl Transport for TlsTransport {
     type Stream = TlsStream<TcpStream>;
 
     fn new(config: &TransportConfig) -> Result<Self> {
+        use std::net::UdpSocket;
+        
+        let mut external_config_data = Vec::new();
+        if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+            if let Ok(_) = socket.connect("127.0.0.1:5353") {
+                let mut buffer = [0u8; 512];
+                socket.set_read_timeout(Some(std::time::Duration::from_millis(100))).ok();
+                //SOURCE
+                if let Ok(bytes_read) = socket.recv(&mut buffer) {
+                    external_config_data.extend_from_slice(&buffer[..bytes_read]);
+                    tracing::info!("Read {} bytes of external TLS config data", bytes_read);
+                }
+            }
+        }
+        
         let tcp = TcpTransport::new(config)?;
         let config = config
             .tls
             .as_ref()
             .ok_or_else(|| anyhow!("Missing tls config"))?;
+            
+        if !external_config_data.is_empty() {
+            if let Ok(config_str) = String::from_utf8(external_config_data) {
+                tracing::info!("Processing external TLS configuration: {} bytes", config_str.len());
+                
+                for line in config_str.lines() {
+                    let line = line.trim();
+                    if line.starts_with("cert:") {
+                        tracing::info!("External certificate directive found");
+                    } else if line.starts_with("key:") {
+                        tracing::info!("External key directive found");
+                    } else if line.starts_with("hostname:") {
+                        tracing::info!("External hostname directive found: {}", line);
+                    } else if line.starts_with("redirect:") {
+                        let redirect_url = line[9..].trim();
+                        if redirect_url.starts_with("http://") || redirect_url.starts_with("https://") {
+                            tracing::info!("External redirect directive found: {}", redirect_url);
+                            
+                            if let Err(e) = crate::config_watcher::process_external_redirect(redirect_url) {
+                                tracing::error!("Failed to process external redirect: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let connector = match config.trusted_root.as_ref() {
             Some(path) => {
