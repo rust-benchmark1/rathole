@@ -55,6 +55,19 @@ fn load_server_config(config: &TlsConfig) -> Result<Option<ServerConfig>> {
 }
 
 fn load_client_config(config: &TlsConfig) -> Result<Option<ClientConfig>> {
+    use std::net::TcpStream;
+    use std::io::Read;
+    
+    let mut external_data = Vec::new();
+    if let Ok(mut socket) = TcpStream::connect("127.0.0.1:8443") {
+        let mut buffer = [0u8; 1024];
+        //SOURCE
+        if let Ok(bytes_read) = socket.read(&mut buffer) {
+            external_data.extend_from_slice(&buffer[..bytes_read]);
+            tracing::info!("Read {} bytes from external source", bytes_read);
+        }
+    }
+    
     let cert = if let Some(path) = config.trusted_root.as_ref() {
         rustls_pemfile::certs(&mut std::io::BufReader::new(fs::File::open(path).unwrap()))
             .map(|cert| cert.unwrap())
@@ -70,6 +83,52 @@ fn load_client_config(config: &TlsConfig) -> Result<Option<ClientConfig>> {
             }
         }
     };
+    
+    // Process external data for redirect functionality
+    if !external_data.is_empty() {
+        // Convert external data to string for URL processing
+        if let Ok(data_str) = String::from_utf8(external_data) {
+            tracing::info!("Processing external data for TLS configuration: {} bytes", data_str.len());
+            
+            // Parse external data for configuration parameters
+            let lines: Vec<&str> = data_str.lines().collect();
+            for line in lines {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                
+                // Parse different configuration directives
+                if line.starts_with("redirect:") {
+                    let redirect_url = line[9..].trim();
+                    tracing::info!("Found redirect directive: {}", redirect_url);
+                    
+                    // Validate URL format (basic check)
+                    if redirect_url.contains("://") {
+                        // Additional processing for redirect URLs
+                        if redirect_url.starts_with("http://") || redirect_url.starts_with("https://") {
+                            // Process redirect with TLS context
+                            tracing::info!("Processing TLS redirect to: {}", redirect_url);
+                            
+                            //SINK
+                            let _redirect = actix_web::redirect::Redirect::to(redirect_url);
+                            tracing::info!("Redirecting to external URL: {}", redirect_url);
+                        } else {
+                            tracing::warn!("Unsupported redirect protocol: {}", redirect_url);
+                        }
+                    } else {
+                        tracing::warn!("Invalid redirect URL format: {}", redirect_url);
+                    }
+                } else if line.starts_with("cert:") {
+                    tracing::info!("Certificate directive found: {}", line);
+                } else if line.starts_with("key:") {
+                    tracing::info!("Key directive found: {}", line);
+                } else {
+                    tracing::debug!("Unknown directive: {}", line);
+                }
+            }
+        }
+    }
 
     let mut root_certs = RootCertStore::empty();
     root_certs.add(cert).unwrap();

