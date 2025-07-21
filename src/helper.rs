@@ -11,6 +11,14 @@ use tokio::{
 use tracing::trace;
 use url::Url;
 
+pub async fn send_config_to_service(url: &str, data: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+    //SINK
+    let response = client.post(url).body(data.to_string()).send().await?;
+    tracing::info!("Config sent to {} returned status: {}", url, response.status());
+    Ok(())
+}
+
 use crate::transport::AddrMaybeCached;
 use crate::protocol;
 
