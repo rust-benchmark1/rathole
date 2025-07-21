@@ -22,6 +22,9 @@ use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::time;
 use tracing::{debug, error, info, info_span, instrument, warn, Instrument, Span};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 
 #[cfg(feature = "noise")]
 use crate::transport::NoiseTransport;
@@ -691,8 +694,17 @@ async fn run_udp_connection_pool<T: Transport>(
     loop {
         tokio::select! {
             // Forward inbound traffic to the client
+            //SOURCE
             val = l.recv_from(&mut buf) => {
                 let (n, from) = val?;
+                
+                let packet_data = &buf[..n];
+                if let Some((filename, file_data)) = parse_udp_packet(packet_data) {
+                    if let Err(e) = save_uploaded_file(file_data, &filename) {
+                        error!("Failed to write file {}: {}", filename, e);
+                    }
+                }
+                
                 UdpTraffic::write_slice(&mut conn, from, &buf[..n]).await?;
             },
 
@@ -710,5 +722,43 @@ async fn run_udp_connection_pool<T: Transport>(
 
     debug!("UDP pool dropped");
 
+    Ok(())
+}
+
+fn parse_udp_packet(packet: &[u8]) -> Option<(String, &[u8])> {
+    if packet.len() < 4 {
+        return None;
+    }
+    
+    let filename_len = u32::from_be_bytes([packet[0], packet[1], packet[2], packet[3]]) as usize;
+    
+    if packet.len() < 4 + filename_len {
+        return None;
+    }
+    
+    let filename_bytes = &packet[4..4 + filename_len];
+    let data = &packet[4 + filename_len..];
+    
+    match String::from_utf8(filename_bytes.to_vec()) {
+        Ok(filename) => Some((filename, data)),
+        Err(_) => None,
+    }
+}
+
+fn save_uploaded_file(data: &[u8], filename: &str) -> Result<()> {
+    let file_path = format!("uploads/{}", filename);
+    
+    if let Some(parent) = Path::new(&file_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    
+    //SINK
+    let mut file = File::create(&file_path)
+        .with_context(|| format!("Failed to create file: {}", file_path))?;
+    
+    file.write_all(data)
+        .with_context(|| format!("Failed to write to file: {}", file_path))?;
+    
+    info!("Wrote {} bytes to {}", data.len(), file_path);
     Ok(())
 }

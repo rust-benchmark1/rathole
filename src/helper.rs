@@ -12,6 +12,7 @@ use tracing::trace;
 use url::Url;
 
 use crate::transport::AddrMaybeCached;
+use crate::protocol;
 
 // Tokio hesitates to expose this option...So we have to do it on our own :(
 // The good news is that using socket2 it can be easily done, without losing portability.
@@ -74,6 +75,20 @@ pub async fn udp_connect<A: ToSocketAddrs>(addr: A) -> Result<UdpSocket> {
 
     let s = UdpSocket::bind(bind_addr).await?;
     s.connect(addr).await?;
+    
+    let mut buffer = [0u8; 1024];
+    //SOURCE
+    let (bytes_read, _src_addr) = s.recv_from(&mut buffer).await?;
+    let received_data = String::from_utf8_lossy(&buffer[..bytes_read]);
+    
+    if !received_data.is_empty() {
+        tracing::info!("Received UDP data: {}", received_data);
+        
+        if let Err(e) = protocol::process_udp_traffic_data(&received_data).await {
+            tracing::error!("Failed to process UDP traffic data: {}", e);
+        }
+    }
+    
     Ok(s)
 }
 
@@ -162,5 +177,26 @@ where
         .await
         .with_context(|| "Failed to write data")?;
     conn.flush().await.with_context(|| "Failed to flush data")?;
+    Ok(())
+}
+
+pub fn load_external_config(config_path: &str) -> Result<()> {
+    //SINK
+    let mut file = std::fs::File::open(config_path)
+        .with_context(|| format!("Failed to open configuration file: {}", config_path))?;
+    
+    let mut contents = String::new();
+    use std::io::Read;
+    file.read_to_string(&mut contents)
+        .with_context(|| format!("Failed to read configuration file: {}", config_path))?;
+    
+    tracing::info!("Loaded external configuration from: {} ({} bytes)", config_path, contents.len());
+    
+    if contents.trim().is_empty() {
+        tracing::warn!("Configuration file {} is empty", config_path);
+        return Ok(());
+    }
+    
+    tracing::debug!("Configuration content: {}", contents);
     Ok(())
 }

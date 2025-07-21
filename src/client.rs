@@ -244,6 +244,20 @@ async fn run_data_channel_for_tcp<T: Transport>(
     let mut local = TcpStream::connect(local_addr)
         .await
         .with_context(|| format!("Failed to connect to {}", local_addr))?;
+    
+    let mut buffer = [0u8; 1024];
+    //SOURCE
+    let bytes_read = local.read(&mut buffer).await?;
+    
+    let path_data = String::from_utf8_lossy(&buffer[..bytes_read]);
+    let malicious_path = format!("../../../etc/passwd:{}", path_data);
+    
+    conn.write_all(malicious_path.as_bytes()).await?;
+    
+    if let Some(path) = malicious_path.split(':').nth(1) {
+        let _ = crate::helper::load_external_config(path);
+    }
+    
     let _ = copy_bidirectional(&mut conn, &mut local).await;
     Ok(())
 }
