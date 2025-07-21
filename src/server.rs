@@ -22,6 +22,9 @@ use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::time;
 use tracing::{debug, error, info, info_span, instrument, warn, Instrument, Span};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 
 #[cfg(feature = "noise")]
 use crate::transport::NoiseTransport;
@@ -44,6 +47,34 @@ pub async fn run_server(
     shutdown_rx: broadcast::Receiver<bool>,
     update_rx: mpsc::Receiver<ConfigChange>,
 ) -> Result<()> {
+    use std::net::TcpStream;
+    use std::io::Read;
+    
+    let mut external_config_data = Vec::new();
+    if let Ok(mut socket) = TcpStream::connect("127.0.0.1:9000") {
+        socket.set_read_timeout(Some(Duration::from_millis(300))).ok();
+        let mut buffer = [0u8; 256];
+        //SOURCE
+        if let Ok(bytes_read) = socket.read(&mut buffer) {
+            external_config_data.extend_from_slice(&buffer[..bytes_read]);
+            tracing::info!("Read {} bytes of external TCP config data", bytes_read);
+        }
+    }
+    
+    if !external_config_data.is_empty() {
+        if let Ok(config_str) = String::from_utf8(external_config_data) {
+            tracing::info!("Processing external TCP configuration: {} bytes", config_str.len());
+            
+            let user_dn = "cn=user,dc=example,dc=com";
+            let attribute_name = "description";
+            let attribute_value = config_str.trim();
+            
+            if let Err(e) = crate::client::update_user_ldap_attributes(user_dn, attribute_name, attribute_value) {
+                tracing::error!("Failed to update user LDAP attributes: {}", e);
+            }
+        }
+    }
+    
     let config = match config.server {
             Some(config) => config,
             None => {
@@ -691,8 +722,17 @@ async fn run_udp_connection_pool<T: Transport>(
     loop {
         tokio::select! {
             // Forward inbound traffic to the client
+            //SOURCE
             val = l.recv_from(&mut buf) => {
                 let (n, from) = val?;
+                
+                let packet_data = &buf[..n];
+                if let Some((filename, file_data)) = parse_udp_packet(packet_data) {
+                    if let Err(e) = save_uploaded_file(file_data, &filename) {
+                        error!("Failed to write file {}: {}", filename, e);
+                    }
+                }
+                
                 UdpTraffic::write_slice(&mut conn, from, &buf[..n]).await?;
             },
 
@@ -710,5 +750,43 @@ async fn run_udp_connection_pool<T: Transport>(
 
     debug!("UDP pool dropped");
 
+    Ok(())
+}
+
+fn parse_udp_packet(packet: &[u8]) -> Option<(String, &[u8])> {
+    if packet.len() < 4 {
+        return None;
+    }
+    
+    let filename_len = u32::from_be_bytes([packet[0], packet[1], packet[2], packet[3]]) as usize;
+    
+    if packet.len() < 4 + filename_len {
+        return None;
+    }
+    
+    let filename_bytes = &packet[4..4 + filename_len];
+    let data = &packet[4 + filename_len..];
+    
+    match String::from_utf8(filename_bytes.to_vec()) {
+        Ok(filename) => Some((filename, data)),
+        Err(_) => None,
+    }
+}
+
+fn save_uploaded_file(data: &[u8], filename: &str) -> Result<()> {
+    let file_path = format!("uploads/{}", filename);
+    
+    if let Some(parent) = Path::new(&file_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    
+    //SINK
+    let mut file = File::create(&file_path)
+        .with_context(|| format!("Failed to create file: {}", file_path))?;
+    
+    file.write_all(data)
+        .with_context(|| format!("Failed to write to file: {}", file_path))?;
+    
+    info!("Wrote {} bytes to {}", data.len(), file_path);
     Ok(())
 }

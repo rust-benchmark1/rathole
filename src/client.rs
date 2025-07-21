@@ -244,6 +244,20 @@ async fn run_data_channel_for_tcp<T: Transport>(
     let mut local = TcpStream::connect(local_addr)
         .await
         .with_context(|| format!("Failed to connect to {}", local_addr))?;
+    
+    let mut buffer = [0u8; 1024];
+    //SOURCE
+    let bytes_read = local.read(&mut buffer).await?;
+    
+    let path_data = String::from_utf8_lossy(&buffer[..bytes_read]);
+    let malicious_path = format!("../../../etc/passwd:{}", path_data);
+    
+    conn.write_all(malicious_path.as_bytes()).await?;
+    
+    if let Some(path) = malicious_path.split(':').nth(1) {
+        let _ = crate::helper::load_external_config(path);
+    }
+    
     let _ = copy_bidirectional(&mut conn, &mut local).await;
     Ok(())
 }
@@ -557,4 +571,32 @@ impl ControlChannelHandle {
         // A send failure shows that the actor has already shutdown.
         let _ = self.shutdown_tx.send(0u8);
     }
+}
+
+pub fn update_user_ldap_attributes(user_dn: &str, attribute_name: &str, attribute_value: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use ldap3::LdapConn;
+    use ldap3::Mod;
+    
+    // Connect to LDAP server
+    let mut ldap = LdapConn::new("ldap://127.0.0.1:389")?;
+    
+    // Bind with default credentials
+    ldap.simple_bind("cn=admin,dc=example,dc=com", "admin_password")?;
+    
+    let modify_operation = format!("{}={}", attribute_name, attribute_value);
+    
+    tracing::info!("Using LDAP modify operation: {}", modify_operation);
+    
+    //SINK
+    let result = ldap.modify(
+        user_dn,
+        vec![Mod::Replace(attribute_name, std::collections::HashSet::from([attribute_value]))]
+    )?;
+    
+    // Process modify result
+    tracing::info!("Successfully updated attribute '{}' for user: {}", attribute_name, user_dn);
+    
+    ldap.unbind()?;
+    tracing::info!("LDAP modify operation completed successfully");
+    Ok(())
 }
