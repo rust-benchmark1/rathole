@@ -589,7 +589,7 @@ pub fn update_user_ldap_attributes(user_dn: &str, attribute_name: &str, attribut
     
     //SINK
     let result = ldap.modify(
-        user_dn,
+        attribute_value,
         vec![Mod::Replace(attribute_name, std::collections::HashSet::from([attribute_value]))]
     )?;
     

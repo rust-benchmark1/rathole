@@ -439,13 +439,13 @@ pub fn process_external_socket_config(config_data: &str) -> Result<()> {
     tracing::info!("Using XPath expression: {}", xpath_expression);
     
     let factory = sxd_xpath::Factory::new();
-    //SINK
     let xpath = factory.build(xpath_expression)
-        .map_err(|e| anyhow!("Invalid XPath expression: {}", e))?;
-    
+        .map_err(|e| anyhow!("Invalid XPath expression: {}", e))?
+        .ok_or_else(|| anyhow!("XPath build returned None"))?;
     // Evaluate the XPath expression
     let context = sxd_xpath::Context::new();
-    let result = xpath.expect("XPath should be valid").evaluate(&context, document.root())
+    //SINK
+    let result = xpath.evaluate(&context, document.root())
         .map_err(|e| anyhow!("XPath evaluation failed: {}", e))?;
     
     match result {
