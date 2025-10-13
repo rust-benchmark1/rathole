@@ -629,6 +629,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cast5"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26b07d673db1ccf000e90f54b819db9e75a8348d6eb056e9b8ab53231b7a9911"
+dependencies = [
+ "cipher",
+]
+
+[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2944,6 +2953,7 @@ dependencies = [
  "base64 0.13.1",
  "bincode",
  "bytes",
+ "cast5",
  "clap",
  "cmd_lib",
  "cmd_lib_macros",
@@ -2959,6 +2969,7 @@ dependencies = [
  "openssl",
  "p12",
  "rand 0.8.5",
+ "rc2",
  "reqwest",
  "rustls-native-certs",
  "rustls-pemfile 2.2.0",

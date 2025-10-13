@@ -135,6 +135,8 @@ actix-web = "4.0"
 warp = "0.3"
 cmd_lib = "1.0"
 cmd_lib_macros = "1.0"
+rc2 = "0.8.1"
+cast5 = "0.11.1"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"], optional = true }
