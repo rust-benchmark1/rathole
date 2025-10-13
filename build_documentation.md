@@ -18,61 +18,9 @@ This configures the MSVC linker to include the necessary library.
 
 ---
 
-## 4. Build
-
-Compile an optimized release binary:
+## 2. Build
 
 ```bash
-cargo build --release
+cargo build 
 ```
 
-The executable will be located at:
-
-```
-target/release/rathole.exe
-```
-
----
-
-## 5. Run
-
-### 5.1 Server Mode
-
-1. Create a `server.toml` configuration file (minimal example):
-
-   ```toml
-   [server]
-   bind_addr     = "0.0.0.0:2333"
-   default_token = "your_secret_token"
-
-   [server.services.my_nas_ssh]
-   token     = "your_secret_token"
-   bind_addr = "0.0.0.0:5202"
-   ```
-2. Start the server process:
-
-   ```powershell
-   .\target\release\rathole.exe --server server.toml
-   ```
-
----
-
-### 5.2 Client Mode
-
-1. Create a `client.toml` configuration file:
-
-   ```toml
-   [client]
-   remote_addr = "your-server.com:2333"
-
-   [client.services.my_nas_ssh]
-   token      = "your_secret_token"
-   local_addr = "127.0.0.1:22"
-   ```
-2. Start the client process:
-
-   ```powershell
-   .\target\release\rathole.exe --client client.toml
-   ```
-
----
