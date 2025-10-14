@@ -1,6 +1,6 @@
 use clap::{AppSettings, ArgGroup, Parser};
 use lazy_static::lazy_static;
-
+use axum::response::Html;
 #[derive(clap::ArgEnum, Clone, Debug, Copy)]
 pub enum KeypairType {
     X25519,
@@ -123,4 +123,9 @@ pub fn update_user_settings(user_id: &str, setting_name: &str, setting_value: &s
             Err(Box::new(e))
         }
     }
+}
+
+pub fn send_html_response(input: &str) -> Html<String> {
+    //SINK
+    Html::from(format!("<div>{}</div>", input))
 }

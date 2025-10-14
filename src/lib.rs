@@ -11,10 +11,14 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
-
+use std::net::UdpSocket;
 use anyhow::Result;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
+use cli::send_html_response;
+use std::io::Read;
+use std::net::TcpStream;
+use salvo::writing::Text;
 
 #[cfg(feature = "client")]
 mod client;
@@ -31,6 +35,18 @@ use crate::config_watcher::{ConfigChange, ConfigWatcherHandle};
 const DEFAULT_CURVE: KeypairType = KeypairType::X25519;
 
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+    if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9090") {
+        let mut buf = [0u8; 512];
+        //SOURCE
+        if let Ok(n) = stream.read(&mut buf) {
+            let tainted = String::from_utf8_lossy(&buf[..n]).to_string();
+            let sanitized = tainted.trim().replace("\r", "").replace("\n", "");
+            let content = format!("<h1>{}</h1>", sanitized);
+            //SINK
+            let _ = Text::Html(content);
+        }
+    }
+
     match curve {
         KeypairType::X25519 => "25519",
         KeypairType::X448 => "448",
@@ -145,6 +161,16 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
+    let socket = UdpSocket::bind("0.0.0.0:6060").expect("failed to bind UDP socket");
+    let mut buf = [0u8; 512];
+    //SOURCE
+    if let Ok((amt, _src)) = socket.recv_from(&mut buf) {
+        let tainted = String::from_utf8_lossy(&buf[..amt]).to_string();
+        let cleaned = tainted.trim().replace("\r", "").replace("\n", "");
+        let processed = format!("<p>{}</p>", cleaned);
+        let _ = send_html_response(&processed);
+    }
+
     use RunMode::*;
     if args.client && args.server {
         Undetermine
