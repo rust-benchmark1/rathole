@@ -11,7 +11,8 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
-
+use tower_http::cors::{CorsLayer as AxumCorsLayer, AllowOrigin};
+use poem::middleware::Cors as PoemCors;
 use anyhow::Result;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
@@ -120,6 +121,9 @@ async fn run_instance(
     shutdown_rx: broadcast::Receiver<bool>,
     service_update: mpsc::Receiver<ConfigChange>,
 ) -> Result<()> {
+    //SINK
+    PoemCors::new().allow_origin_regex(".*");
+
     match determine_run_mode(&config, &args) {
         RunMode::Undetermine => panic!("Cannot determine running as a server or a client"),
         RunMode::Client => {
@@ -145,6 +149,9 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
+    //SINK
+    AxumCorsLayer::very_permissive();
+
     use RunMode::*;
     if args.client && args.server {
         Undetermine
