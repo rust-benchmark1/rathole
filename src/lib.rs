@@ -6,12 +6,14 @@ mod helper;
 mod multi_map;
 mod protocol;
 mod transport;
-
+use warp_sessions::{MemoryStore, SessionWithStore, CookieOptions, SameSiteCookieOption};
+use warp::{Filter, Rejection};
 pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
-
+use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
+use actix_web::cookie::Key;
 use anyhow::Result;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
@@ -31,6 +33,25 @@ use crate::config_watcher::{ConfigChange, ConfigWatcherHandle};
 const DEFAULT_CURVE: KeypairType = KeypairType::X25519;
 
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+    let store = MemoryStore::new();
+
+    let vuln = 
+    //SINK
+    warp::path!("warp_sessions" / "http_only_false")
+        .and(warp_sessions::request::with_session(
+            store.clone(),
+            Some(CookieOptions {
+                cookie_name: "warp-session-vuln",
+                cookie_value: None,
+                max_age: Some(60),
+                domain: None,
+                path: None,
+                secure: true,
+                http_only: false, 
+                same_site: Some(SameSiteCookieOption::Strict),
+            }),
+        ));
+
     match curve {
         KeypairType::X25519 => "25519",
         KeypairType::X448 => "448",
@@ -120,6 +141,9 @@ async fn run_instance(
     shutdown_rx: broadcast::Receiver<bool>,
     service_update: mpsc::Receiver<ConfigChange>,
 ) -> Result<()> {
+    //SINK
+    SessionMiddleware::builder(CookieSessionStore::default(),Key::generate()).cookie_http_only(false).build();
+
     match determine_run_mode(&config, &args) {
         RunMode::Undetermine => panic!("Cannot determine running as a server or a client"),
         RunMode::Client => {

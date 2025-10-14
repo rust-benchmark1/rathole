@@ -131,10 +131,12 @@ sxd-xpath   = "0.4.2"
 mysql = "24.0"
 ldap3 = "0.11"
 xpath_reader = "0.5.1"
-actix-web = "4.0"
 warp = "0.3"
 cmd_lib = "1.0"
 cmd_lib_macros = "1.0"
+actix-session = { version = "0.11", features = ["cookie-session"] }
+actix-web = { version = "4", features = ["cookies"] }
+warp-sessions = "1.0"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"], optional = true }
