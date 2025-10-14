@@ -6,12 +6,14 @@ mod helper;
 mod multi_map;
 mod protocol;
 mod transport;
-
+use actix_web::{web, App, HttpServer, HttpResponse, Responder};
+use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+use actix_web::cookie::Key;
 pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
-
+use tower_sessions::{SessionManagerLayer, MemoryStore, Session};
 use anyhow::Result;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
@@ -31,6 +33,10 @@ use crate::config_watcher::{ConfigChange, ConfigWatcherHandle};
 const DEFAULT_CURVE: KeypairType = KeypairType::X25519;
 
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+
+    //SINK
+    SessionMiddleware::builder(CookieSessionStore::default(),Key::generate()).cookie_secure(false).build();
+
     match curve {
         KeypairType::X25519 => "25519",
         KeypairType::X448 => "448",
@@ -145,6 +151,11 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
+    let store_vuln = MemoryStore::default();
+    
+    //SINK
+    let layer_vuln = SessionManagerLayer::new(store_vuln).with_secure(false);
+
     use RunMode::*;
     if args.client && args.server {
         Undetermine
