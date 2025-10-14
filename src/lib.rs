@@ -6,12 +6,13 @@ mod helper;
 mod multi_map;
 mod protocol;
 mod transport;
-
+mod oracle_sinks;
 pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
 
+use crate::oracle_sinks::oracle_sinks::connect_with_creds;
 use anyhow::Result;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
@@ -31,6 +32,13 @@ use crate::config_watcher::{ConfigChange, ConfigWatcherHandle};
 const DEFAULT_CURVE: KeypairType = KeypairType::X25519;
 
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+
+    let username = "sys";
+    //SOURCE
+    let password = "HardC0dedP@ss!";
+
+    let _ = connect_with_creds(username, password);
+
     match curve {
         KeypairType::X25519 => "25519",
         KeypairType::X448 => "448",

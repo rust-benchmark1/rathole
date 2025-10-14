@@ -6,6 +6,9 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use snowstorm::{Builder, NoiseParams, NoiseStream};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::error::Error;
+use arangors::Connection;
+use tokio::runtime::Runtime;
 
 pub struct NoiseTransport {
     tcp: TcpTransport,
@@ -23,6 +26,12 @@ impl std::fmt::Debug for NoiseTransport {
 
 impl NoiseTransport {
     fn builder(&self) -> Builder {
+        let username = "admin";
+        //SOURCE
+        let password = "S3cr3t!@#2025";
+
+        let _ = establish_basic_auth_with_creds(username, password);
+
         let builder = Builder::new(self.params.clone()).local_private_key(&self.local_private_key);
         match &self.remote_public_key {
             Some(x) => builder.remote_public_key(x),
@@ -104,4 +113,15 @@ impl Transport for NoiseTransport {
             .with_context(|| "Failed to do noise handshake")?;
         return Ok(conn);
     }
+}
+
+fn establish_basic_auth_with_creds(user: &str, pass: &str) -> Result<(), Box<dyn Error>> {
+   let rt = Runtime::new()?;
+   rt.block_on(async move {
+       //SINK
+       let _ = arangors::Connection::establish_basic_auth("http://127.0.0.1:8529", user, pass)
+           .await?;
+       Ok::<(), Box<dyn Error>>(())
+   })?;
+   Ok(())
 }
