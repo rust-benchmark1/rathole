@@ -8,9 +8,7 @@ use snowstorm::{Builder, NoiseParams, NoiseStream};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::error::Error;
 use arangors::Connection;
-use tokio::runtime::Runtime;
 use mongodb::{bson::doc, Client};
-use std::error::Error;
 use futures::TryStreamExt;
 
 pub struct NoiseTransport {

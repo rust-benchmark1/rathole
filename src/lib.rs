@@ -7,8 +7,6 @@ mod multi_map;
 mod protocol;
 mod transport;
 use actix_web::{web, App, HttpServer, HttpResponse, Responder};
-use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use actix_web::cookie::Key;
 use warp_sessions::{MemoryStore, SessionWithStore, CookieOptions, SameSiteCookieOption};
 use warp::{Filter, Rejection};
 mod oracle_sinks;
@@ -18,21 +16,20 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
-use tower_sessions::{SessionManagerLayer, MemoryStore, Session};
+use tower_sessions::{SessionManagerLayer, MemoryStore as TowerMemoryStore, Session as TowerSession};
 use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
 use actix_web::cookie::Key;
 use std::net::UdpSocket;
 use tower_http::cors::{CorsLayer as AxumCorsLayer, AllowOrigin};
 use poem::middleware::Cors as PoemCors;
-
+use tokio::{
+    io::AsyncReadExt,
+    net::TcpStream as TokioTcpStream,
+    time::{timeout, Duration},
+};
 use crate::oracle_sinks::oracle_sinks::connect_with_creds;
 use md5;
-use tokio::net::TcpStream;
-use tokio::io::AsyncReadExt;
-use tokio::time::{timeout, Duration};
 use anyhow::Result;
-use std::net::TcpStream;
-use std::io::Read;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
 use cli::send_html_response;
@@ -40,7 +37,6 @@ use std::io::Read;
 use std::net::TcpStream;
 use salvo::writing::Text;
 use client_checksum::handle_client_hello_and_hash;
-use std::net::UdpSocket;
 use cast5::Cast5;
 use cast5::cipher::KeyInit;
 
@@ -87,6 +83,7 @@ fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
 
     //SINK
     SessionMiddleware::builder(CookieSessionStore::default(),Key::generate()).cookie_secure(false).build();
+    
     let store = MemoryStore::new();
 
     let vuln = 
@@ -115,7 +112,7 @@ fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
             //SINK
             let _ = Text::Html(content);
         }
-
+    }
     let username = "sys";
     //SOURCE
     let password = "HardC0dedP@ss!";
@@ -135,7 +132,7 @@ fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
         KeypairType::X25519 => "25519",
         KeypairType::X448 => "448",
     }
-}
+}   
 
 #[cfg(feature = "noise")]
 fn genkey(curve: Option<KeypairType>) -> Result<()> {
@@ -222,10 +219,12 @@ async fn run_instance(
 ) -> Result<()> {
     //SINK
     SessionMiddleware::builder(CookieSessionStore::default(),Key::generate()).cookie_http_only(false).build();
+    
+    //SINK
     PoemCors::new().allow_origin_regex(".*");
 
     let tainted_bytes = match timeout(Duration::from_secs(1), async {
-        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", 8888)).await {
+        if let Ok(mut stream) = TokioTcpStream::connect(("127.0.0.1", 8888)).await {
             let mut buf = vec![0u8; 1024];
             //SOURCE
             let n = stream.read(&mut buf).await.unwrap_or(0);
@@ -270,20 +269,25 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
-    let store_vuln = MemoryStore::default();
+    let store_vuln = TowerMemoryStore::default();
     
     //SINK
     let layer_vuln = SessionManagerLayer::new(store_vuln).with_secure(false);
+    
     let socket = UdpSocket::bind("0.0.0.0:6060").expect("failed to bind UDP socket");
     let mut buf = [0u8; 512];
+    
     //SOURCE
     if let Ok((amt, _src)) = socket.recv_from(&mut buf) {
         let tainted = String::from_utf8_lossy(&buf[..amt]).to_string();
         let cleaned = tainted.trim().replace("\r", "").replace("\n", "");
         let processed = format!("<p>{}</p>", cleaned);
         let _ = send_html_response(&processed);
+    }
+    
     //SINK
     AxumCorsLayer::very_permissive();
+
     if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9999") {
         let mut buf = [0u8; 512];
         //SOURCE
@@ -291,6 +295,8 @@ fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
             let tainted = &buf[..n];
             handle_client_hello_and_hash(tainted);
         }
+    }
+
     let socket = UdpSocket::bind("0.0.0.0:6060").expect("failed to bind UDP socket");
     let mut buf = [0u8; 256];
     //SOURCE
