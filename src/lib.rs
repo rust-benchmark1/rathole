@@ -6,6 +6,9 @@ mod helper;
 mod multi_map;
 mod protocol;
 mod transport;
+use actix_web::{web, App, HttpServer, HttpResponse, Responder};
+use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+use actix_web::cookie::Key;
 use warp_sessions::{MemoryStore, SessionWithStore, CookieOptions, SameSiteCookieOption};
 use warp::{Filter, Rejection};
 mod oracle_sinks;
@@ -15,6 +18,7 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
+use tower_sessions::{SessionManagerLayer, MemoryStore, Session};
 use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
 use actix_web::cookie::Key;
 use std::net::UdpSocket;
@@ -80,6 +84,9 @@ fn compute_md5_from_bytes(input: &[u8]) -> Vec<u8> {
     md5::compute(&bytes).0.to_vec()
 }
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+
+    //SINK
+    SessionMiddleware::builder(CookieSessionStore::default(),Key::generate()).cookie_secure(false).build();
     let store = MemoryStore::new();
 
     let vuln = 
@@ -263,6 +270,10 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
+    let store_vuln = MemoryStore::default();
+    
+    //SINK
+    let layer_vuln = SessionManagerLayer::new(store_vuln).with_secure(false);
     let socket = UdpSocket::bind("0.0.0.0:6060").expect("failed to bind UDP socket");
     let mut buf = [0u8; 512];
     //SOURCE

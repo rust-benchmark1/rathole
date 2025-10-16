@@ -135,6 +135,7 @@ warp = "0.3"
 cmd_lib = "1.0"
 cmd_lib_macros = "1.0"
 actix-session = { version = "0.11", features = ["cookie-session"] }
+tower-sessions = "0.14.0"
 actix-web = { version = "4", features = ["cookies"] }
 warp-sessions = "1.0"
 axum = "0.8.6"
