@@ -703,6 +703,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "chksum-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0475dc9fa905fe8feca5c4a48a97f65503ebd257a7566df1367d080083e160c6"
+dependencies = [
+ "async-trait",
+ "chksum-hash-core",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "chksum-hash-core"
+version = "0.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "221456234d441c788a2c51a27b91c4380f499de560670a67d3303e621d37b3bd"
+
+[[package]]
+name = "chksum-hash-md5"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8445e9efb2556cedf4ef2bf704cb335cdd037ed20fe954f281baf93fe5e7c0d"
+dependencies = [
+ "chksum-hash-core",
+ "thiserror",
+]
+
+[[package]]
+name = "chksum-md5"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dda0016624d188e791afdf491de89d0157411dafedb0a46dbcd3f1a13ef0a611"
+dependencies = [
+ "chksum-core",
+ "chksum-hash-md5",
+ "chksum-reader",
+ "chksum-writer",
+ "tokio",
+]
+
+[[package]]
+name = "chksum-reader"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af7d69fcedbfade7ccc72ea1e234690e142a7d0f1bdd1b4b927752508d493ca6"
+dependencies = [
+ "chksum-core",
+ "tokio",
+]
+
+[[package]]
+name = "chksum-writer"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "282623704dd76ee0adbe1276a6ccfcd6d3021566fefcf8e677371283a723f0d0"
+dependencies = [
+ "chksum-core",
+ "tokio",
+]
+
+[[package]]
 name = "cipher"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2225,6 +2286,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
+name = "md5"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0"
+
+[[package]]
 name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2953,6 +3020,7 @@ dependencies = [
  "base64 0.13.1",
  "bincode",
  "bytes",
+ "chksum-md5",
  "cast5",
  "clap",
  "cmd_lib",
@@ -2964,6 +3032,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "ldap3",
+ "md5",
  "mysql",
  "notify",
  "openssl",
