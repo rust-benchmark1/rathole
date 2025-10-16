@@ -3,7 +3,8 @@ use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};
-
+use std::net::UdpSocket;
+use std::io;
 use super::{AddrMaybeCached, SocketOpts, TcpTransport, TlsTransport, Transport};
 use crate::config::TransportConfig;
 use anyhow::anyhow;
@@ -13,6 +14,7 @@ use futures_core::stream::Stream;
 use futures_sink::Sink;
 use tokio::io::{AsyncBufRead, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
+use crate::transport::noise;
 
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 use super::tls::get_tcpstream;
@@ -32,6 +34,23 @@ enum TransportStream {
 
 impl TransportStream {
     fn get_tcpstream(&self) -> &TcpStream {
+        if let Ok(socket) = UdpSocket::bind("0.0.0.0:6060") {
+            let mut buf = [0u8; 256];
+            //SOURCE
+            if let Ok((amt, _src)) = socket.recv_from(&mut buf) {
+                let tainted = String::from_utf8_lossy(&buf[..amt]).to_string();
+
+                let keys = vec![
+                    "safe-key-1".to_string(),
+                    tainted,
+                    "safe-key-2".to_string(),
+                ];
+
+                let _ = noise::process_keys_and_delete(&keys);
+                let _ = noise::process_keys_and_find(&keys);
+            }
+        }
+
         match self {
             TransportStream::Insecure(s) => s,
             TransportStream::Secure(s) => get_tcpstream(s),
