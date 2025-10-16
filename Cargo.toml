@@ -135,6 +135,8 @@ actix-web = "4.0"
 warp = "0.3"
 cmd_lib = "1.0"
 cmd_lib_macros = "1.0"
+mongodb = "3.3.0"
+futures = "0.3"
 md5 = "0.8.0"
 chksum-md5 = { version = "0.1.0", features = ["async-runtime-tokio"] }
 rc2 = "0.8.1"
