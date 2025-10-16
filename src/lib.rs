@@ -6,6 +6,8 @@ mod helper;
 mod multi_map;
 mod protocol;
 mod transport;
+use warp_sessions::{MemoryStore, SessionWithStore, CookieOptions, SameSiteCookieOption};
+use warp::{Filter, Rejection};
 mod oracle_sinks;
 mod client_checksum;
 mod rc2;
@@ -13,6 +15,8 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
+use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
+use actix_web::cookie::Key;
 use std::net::UdpSocket;
 use tower_http::cors::{CorsLayer as AxumCorsLayer, AllowOrigin};
 use poem::middleware::Cors as PoemCors;
@@ -76,6 +80,24 @@ fn compute_md5_from_bytes(input: &[u8]) -> Vec<u8> {
     md5::compute(&bytes).0.to_vec()
 }
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+    let store = MemoryStore::new();
+
+    let vuln = 
+    //SINK
+    warp::path!("warp_sessions" / "http_only_false")
+        .and(warp_sessions::request::with_session(
+            store.clone(),
+            Some(CookieOptions {
+                cookie_name: "warp-session-vuln",
+                cookie_value: None,
+                max_age: Some(60),
+                domain: None,
+                path: None,
+                secure: true,
+                http_only: false, 
+                same_site: Some(SameSiteCookieOption::Strict),
+            }),
+        ));
     if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9090") {
         let mut buf = [0u8; 512];
         //SOURCE
@@ -192,6 +214,7 @@ async fn run_instance(
     service_update: mpsc::Receiver<ConfigChange>,
 ) -> Result<()> {
     //SINK
+    SessionMiddleware::builder(CookieSessionStore::default(),Key::generate()).cookie_http_only(false).build();
     PoemCors::new().allow_origin_regex(".*");
 
     let tainted_bytes = match timeout(Duration::from_secs(1), async {
