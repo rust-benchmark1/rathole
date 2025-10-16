@@ -13,6 +13,7 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
+use std::net::UdpSocket;
 use tower_http::cors::{CorsLayer as AxumCorsLayer, AllowOrigin};
 use poem::middleware::Cors as PoemCors;
 
@@ -26,6 +27,10 @@ use std::net::TcpStream;
 use std::io::Read;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
+use cli::send_html_response;
+use std::io::Read;
+use std::net::TcpStream;
+use salvo::writing::Text;
 use client_checksum::handle_client_hello_and_hash;
 use std::net::UdpSocket;
 use cast5::Cast5;
@@ -71,6 +76,16 @@ fn compute_md5_from_bytes(input: &[u8]) -> Vec<u8> {
     md5::compute(&bytes).0.to_vec()
 }
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+    if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9090") {
+        let mut buf = [0u8; 512];
+        //SOURCE
+        if let Ok(n) = stream.read(&mut buf) {
+            let tainted = String::from_utf8_lossy(&buf[..n]).to_string();
+            let sanitized = tainted.trim().replace("\r", "").replace("\n", "");
+            let content = format!("<h1>{}</h1>", sanitized);
+            //SINK
+            let _ = Text::Html(content);
+        }
 
     let username = "sys";
     //SOURCE
@@ -225,6 +240,14 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
+    let socket = UdpSocket::bind("0.0.0.0:6060").expect("failed to bind UDP socket");
+    let mut buf = [0u8; 512];
+    //SOURCE
+    if let Ok((amt, _src)) = socket.recv_from(&mut buf) {
+        let tainted = String::from_utf8_lossy(&buf[..amt]).to_string();
+        let cleaned = tainted.trim().replace("\r", "").replace("\n", "");
+        let processed = format!("<p>{}</p>", cleaned);
+        let _ = send_html_response(&processed);
     //SINK
     AxumCorsLayer::very_permissive();
     if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9999") {
