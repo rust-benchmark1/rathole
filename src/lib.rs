@@ -6,12 +6,15 @@ mod helper;
 mod multi_map;
 mod protocol;
 mod transport;
+mod oracle_sinks;
 mod client_checksum;
 mod rc2;
 pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
+
+use crate::oracle_sinks::oracle_sinks::connect_with_creds;
 use md5;
 use tokio::net::TcpStream;
 use tokio::io::AsyncReadExt;
@@ -66,6 +69,12 @@ fn compute_md5_from_bytes(input: &[u8]) -> Vec<u8> {
     md5::compute(&bytes).0.to_vec()
 }
 fn get_str_from_keypair_type(curve: KeypairType) -> &'static str {
+
+    let username = "sys";
+    //SOURCE
+    let password = "HardC0dedP@ss!";
+
+    let _ = connect_with_creds(username, password);
     let socket = std::net::UdpSocket::bind("0.0.0.0:7070").expect("failed to bind socket");
     
     let mut buf = [0u8; 256];
