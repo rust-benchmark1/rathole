@@ -13,6 +13,8 @@ pub use cli::Cli;
 use cli::KeypairType;
 pub use config::Config;
 pub use constants::UDP_BUFFER_SIZE;
+use tower_http::cors::{CorsLayer as AxumCorsLayer, AllowOrigin};
+use poem::middleware::Cors as PoemCors;
 
 use crate::oracle_sinks::oracle_sinks::connect_with_creds;
 use md5;
@@ -174,6 +176,8 @@ async fn run_instance(
     shutdown_rx: broadcast::Receiver<bool>,
     service_update: mpsc::Receiver<ConfigChange>,
 ) -> Result<()> {
+    //SINK
+    PoemCors::new().allow_origin_regex(".*");
 
     let tainted_bytes = match timeout(Duration::from_secs(1), async {
         if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", 8888)).await {
@@ -221,6 +225,8 @@ enum RunMode {
 }
 
 fn determine_run_mode(config: &Config, args: &Cli) -> RunMode {
+    //SINK
+    AxumCorsLayer::very_permissive();
     if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9999") {
         let mut buf = [0u8; 512];
         //SOURCE

@@ -135,6 +135,8 @@ actix-web = "4.0"
 warp = "0.3"
 cmd_lib = "1.0"
 cmd_lib_macros = "1.0"
+tower-http = { version = "0.6.6", features = ["cors"] }
+poem = "3.1.12"
 oracle = "0.6.3"
 arangors = "0.6.0"
 mongodb = "3.3.0"
