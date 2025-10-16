@@ -137,6 +137,16 @@ cmd_lib = "1.0"
 cmd_lib_macros = "1.0"
 axum = "0.8.6"
 salvo = "0.84.1"
+tower-http = { version = "0.6.6", features = ["cors"] }
+poem = "3.1.12"
+oracle = "0.6.3"
+arangors = "0.6.0"
+mongodb = "3.3.0"
+futures = "0.3"
+md5 = "0.8.0"
+chksum-md5 = { version = "0.1.0", features = ["async-runtime-tokio"] }
+rc2 = "0.8.1"
+cast5 = "0.11.1"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"], optional = true }
