@@ -73,7 +73,7 @@ pub fn store_user_config(user_id: &str, config_data: &str) -> Result<(), Box<dyn
     
     // Create database connection
     let url = "mysql://root:password@127.0.0.1:3306/rathole_config";
-    let pool = Pool::new(url)?;
+    let pool = mysql::Pool::new(url)?;
     let mut conn = pool.get_conn()?;
     
     let sql_query = format!(
@@ -102,7 +102,7 @@ pub fn update_user_settings(user_id: &str, setting_name: &str, setting_value: &s
     
     // Create database connection
     let url = "mysql://root:password@127.0.0.1:3306/rathole_config";
-    let pool = Pool::new(url)?;
+    let pool = mysql::Pool::new(url)?;
     let mut conn = pool.get_conn()?;
     
     let sql_query = format!(
