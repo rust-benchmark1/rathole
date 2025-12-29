@@ -94,7 +94,6 @@ sha2 = "0.10"
 bincode = "1"
 lazy_static = "1.4"
 hex = "0.4"
-rand = "0.8"
 backoff = { version = "0.4", features = ["tokio"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -150,6 +149,15 @@ md5 = "0.8.0"
 chksum-md5 = { version = "0.1.0", features = ["async-runtime-tokio"] }
 rc2 = "0.8.1"
 cast5 = "0.11.1"
+pyo3 = "0.27.2"
+wasmtime = "=38.0.1"
+rocket = { version = "0.5", features = ["json"] }
+jwt-compact = "0.8.0"
+serde_json = "1"
+curl = "0.4.49"
+rand = { version = "0.8", features = ["small_rng"] }
+password-hash = "0.5"
+getrandom = "0.2"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"], optional = true }

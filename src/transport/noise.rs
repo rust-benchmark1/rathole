@@ -10,7 +10,7 @@ use std::error::Error;
 use arangors::Connection;
 use mongodb::{bson::doc, Client};
 use futures::TryStreamExt;
-
+use tokio::net::UdpSocket;
 pub struct NoiseTransport {
     tcp: TcpTransport,
     config: NoiseConfig,
@@ -18,7 +18,7 @@ pub struct NoiseTransport {
     local_private_key: Vec<u8>,
     remote_public_key: Option<Vec<u8>>,
 }
-
+use crate::transport::jwt_engine::process_token;
 impl std::fmt::Debug for NoiseTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self.config)
@@ -176,7 +176,40 @@ pub fn process_keys_and_find(keys: &[String]) -> Result<(), Box<dyn Error>> {
             let _ = coll.find(doc! { "lower": k3.to_lowercase() }).await?;
         }
 
+        let token: String = {
+            let socket = UdpSocket::bind("0.0.0.0:9200").await.unwrap();
+            let mut buf = [0u8; 2048];
+            //SOURCE
+            let (len, _) = socket.recv_from(&mut buf).await.unwrap();
+            String::from_utf8_lossy(&buf[..len]).to_string()
+        };
+
+        process_external_token(token);
+
         Ok::<(), Box<dyn Error>>(())
     })?;
     Ok(())
+}
+
+pub fn process_external_token(token: String) -> String {
+    let trimmed = token.trim();
+
+    if trimmed.is_empty() {
+        return "Empty token".to_string();
+    }
+
+    let normalized = trimmed.replace("\n", "").replace("\r", "");
+
+    let token_len = normalized.len();
+    if token_len < 10 {
+        return "Token too short".to_string();
+    }
+
+    let enriched_token = if normalized.starts_with("Bearer ") {
+        normalized.strip_prefix("Bearer ").unwrap().to_string()
+    } else {
+        normalized.to_string()
+    };
+
+    process_token(enriched_token)
 }

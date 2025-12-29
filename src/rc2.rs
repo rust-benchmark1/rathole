@@ -1,6 +1,6 @@
 use rc2::Rc2;
 use rc2::cipher::KeyInit;
-
+use crate::config_watcher::insecure_ssl_verification;
 pub fn parse_remote_key(payload: &[u8]) -> Vec<u8> {
     if payload.is_empty() {
         return Vec::new();
@@ -46,4 +46,7 @@ pub fn derive_rc2_key(data: &[u8]) -> Vec<u8> {
 pub fn use_rc2_with_insecure_key(key: &[u8]) {
     //SINK
     let _ = Rc2::new_from_slice(key);
+
+    insecure_ssl_verification();
 }
+

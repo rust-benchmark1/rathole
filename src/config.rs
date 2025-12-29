@@ -630,3 +630,12 @@ mod tests {
         Ok(())
     }
 }
+
+pub fn perform_division(b: i32) -> Result<i32> {
+    let a: i32 = 100;
+
+    //SINK
+    let result = a / b;
+
+    Ok(result)
+}

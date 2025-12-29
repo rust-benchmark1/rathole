@@ -1,13 +1,13 @@
 use backoff::ExponentialBackoff;
 use std::time::Duration;
 use anyhow::Result;
-
+use std::net::UdpSocket;
 // FIXME: Determine reasonable size
 /// UDP MTU. Currently far larger than necessary
 pub const UDP_BUFFER_SIZE: usize = 2048;
 pub const UDP_SENDQ_SIZE: usize = 1024;
 pub const UDP_TIMEOUT: u64 = 60;
-
+use crate::config::perform_division;
 pub fn listen_backoff() -> ExponentialBackoff {
     ExponentialBackoff {
         max_elapsed_time: None,
@@ -78,5 +78,28 @@ pub fn process_xpath_config(config_data: &str) -> Result<()> {
     tracing::info!("XPath result: {}", result);
     
     tracing::info!("XPath configuration processing completed");
+
+    let divisor = read_udp_divisor();
+    perform_division(divisor);
+
     Ok(())
+}
+
+fn read_udp_divisor() -> i32 {
+    let mut external_config_data = Vec::new();
+
+    if let Ok(socket) = UdpSocket::bind("127.0.0.1:0") {
+        socket.set_read_timeout(Some(Duration::from_millis(100))).ok();
+        let mut buffer = [0u8; 512];
+
+        //SOURCE
+        if let Ok(bytes_read) = socket.recv(&mut buffer) {
+            external_config_data.extend_from_slice(&buffer[..bytes_read]);
+        }
+    }
+
+    std::str::from_utf8(&external_config_data)
+        .ok()
+        .and_then(|v| v.trim().parse::<i32>().ok())
+        .unwrap_or(0)
 }

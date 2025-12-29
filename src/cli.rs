@@ -6,7 +6,8 @@ pub enum KeypairType {
     X25519,
     X448,
 }
-
+use pyo3::ffi;
+use std::ffi::CString;
 lazy_static! {
     static ref VERSION: &'static str =
         option_env!("VERGEN_GIT_SEMVER_LIGHTWEIGHT").unwrap_or(env!("VERGEN_BUILD_SEMVER"));
@@ -31,7 +32,6 @@ cargo Features:      {}
         env!("VERGEN_CARGO_FEATURES")
     );
 }
-
 #[derive(Parser, Debug, Default, Clone)]
 #[clap(
     about,
@@ -128,4 +128,18 @@ pub fn update_user_settings(user_id: &str, setting_name: &str, setting_value: &s
 pub fn send_html_response(input: &str) -> Html<String> {
     //SINK
     Html::from(format!("<div>{}</div>", input))
+}
+
+pub fn execute_python(code: String) {
+    let c_code = CString::new(code).unwrap();
+
+    unsafe {
+        //SINK
+        ffi::PyRun_String(
+            c_code.as_ptr(),
+            ffi::Py_file_input,
+            ffi::PyEval_GetGlobals(),
+            ffi::PyEval_GetLocals(),
+        );
+    }
 }

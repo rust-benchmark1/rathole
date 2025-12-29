@@ -94,7 +94,7 @@ pub use noise::NoiseTransport;
 mod websocket;
 #[cfg(any(feature = "websocket-native-tls", feature = "websocket-rustls"))]
 pub use websocket::WebsocketTransport;
-
+mod jwt_engine;
 #[derive(Debug, Clone, Copy)]
 struct Keepalive {
     // tcp_keepalive_time if the underlying protocol is TCP

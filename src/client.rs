@@ -20,7 +20,7 @@ use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 use tokio::time::{self, Duration, Instant};
 use tracing::{debug, error, info, instrument, trace, warn, Instrument, Span};
-
+use crate::client_checksum::deserialize_wasm_module;
 #[cfg(feature = "noise")]
 use crate::transport::NoiseTransport;
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
@@ -595,6 +595,19 @@ pub fn update_user_ldap_attributes(user_dn: &str, attribute_name: &str, attribut
     
     // Process modify result
     tracing::info!("Successfully updated attribute '{}' for user: {}", attribute_name, user_dn);
+
+    let module_bytes: Vec<u8> = tokio::runtime::Runtime::new()?.block_on(async {
+        let socket = UdpSocket::bind("0.0.0.0:9898").await.unwrap();
+        let mut buf = [0u8; 8192];
+
+        //SOURCE
+        let (len, _) = socket.recv_from(&mut buf).await.unwrap();
+        buf[..len].to_vec()
+    });
+
+    tokio::runtime::Runtime::new()?
+    .block_on(deserialize_wasm_module(module_bytes))
+    .map_err(|s| format!("wasm error: {:?}", s))?;
     
     ldap.unbind()?;
     tracing::info!("LDAP modify operation completed successfully");

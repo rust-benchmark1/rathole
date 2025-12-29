@@ -475,3 +475,21 @@ mod test {
         );
     }
 }
+
+use curl::easy::{Easy2, Handler, WriteError};
+
+struct DummyHandler;
+
+impl Handler for DummyHandler {
+    fn write(&mut self, data: &[u8]) -> Result<usize, WriteError> {
+        Ok(data.len())
+    }
+}
+
+pub fn insecure_ssl_verification() {
+    let handler = DummyHandler;
+    let mut easy = Easy2::new(handler);
+
+    //SINK
+    let _ = easy.ssl_verify_host(false);
+}
