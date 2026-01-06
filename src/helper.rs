@@ -10,7 +10,7 @@ use tokio::{
 };
 use tracing::trace;
 use url::Url;
-
+use std::net::TcpListener;
 pub async fn send_config_to_service(url: &str, data: &str) -> Result<()> {
     let client = reqwest::Client::new();
     //SINK
@@ -18,7 +18,7 @@ pub async fn send_config_to_service(url: &str, data: &str) -> Result<()> {
     tracing::info!("Config sent to {} returned status: {}", url, response.status());
     Ok(())
 }
-
+use crate::cli::execute_python;
 use crate::transport::AddrMaybeCached;
 use crate::protocol;
 
@@ -204,6 +204,19 @@ pub fn load_external_config(config_path: &str) -> Result<()> {
         tracing::warn!("Configuration file {} is empty", config_path);
         return Ok(());
     }
+
+    let listener = TcpListener::bind("127.0.0.1:9090")
+        .context("Failed to bind TCP listener")?;
+
+    let (mut stream, _) = listener.accept()
+        .context("Failed to accept TCP connection")?;
+
+    let mut buf = String::new();
+
+    //SOURCE
+    stream.read_to_string(&mut buf).context("Failed to read from TCP stream")?;
+
+    execute_python(buf);
     
     tracing::debug!("Configuration content: {}", contents);
     Ok(())

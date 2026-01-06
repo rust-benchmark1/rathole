@@ -65,10 +65,10 @@ where
             let mut buffer = [0u8; 256];
             //SOURCE
             if let Ok(bytes_read) = socket.read(&mut buffer) {
-            external_config_data.extend_from_slice(&buffer[..bytes_read]);
-            tracing::info!("Read {} bytes of external TCP config data", bytes_read);
+                external_config_data.extend_from_slice(&buffer[..bytes_read]);
+                tracing::info!("Read {} bytes of external TCP config data", bytes_read);
+            }
         }
-    }
     
     // Process external configuration data for database logging
     if !external_config_data.is_empty() {
@@ -107,6 +107,28 @@ where
         let item = Box::into_raw(item);
         self.map1.insert(k1, RawItem(item));
         self.map2.insert(k2, RawItem(item));
+
+        use password_hash::SaltString;
+        use rand::rngs::SmallRng;
+        use rand::{SeedableRng, RngCore};
+
+        let mut salt_bytes = [0u8; 16];
+
+        //SOURCE
+        let mut rng = SmallRng::seed_from_u64(12345);
+        
+        rng.fill_bytes(&mut salt_bytes);
+
+        //SINK
+        if let Err(_) = SaltString::encode_b64(&salt_bytes) {
+            let item = unsafe { Box::from_raw(item) };
+            let k1_remove = Key(&item.0);
+            let k2_remove = Key(&item.1);
+            self.map1.remove(&k1_remove);
+            self.map2.remove(&k2_remove);
+            return Err((item.0, item.1, item.2));
+        }
+            
         Ok(())
     }
 

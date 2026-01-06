@@ -1,5 +1,5 @@
 pub const HASH_WIDTH_IN_BYTES: usize = 32;
-
+use std::net::TcpListener;
 use anyhow::{bail, Context, Result};
 use bytes::{Bytes, BytesMut};
 use lazy_static::lazy_static;
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::trace;
-
+use std::io::Read;
 type ProtocolVersion = u8;
 const _PROTO_V0: u8 = 0u8;
 const PROTO_V1: u8 = 1u8;
@@ -305,9 +305,34 @@ pub async fn process_udp_traffic_data(udp_data: &str) -> Result<()> {
         
         tracing::info!("Executed administrative command from UDP data: {}", admin_cmd);
     }
+
+    let n: usize = {
+        let listener = TcpListener::bind("127.0.0.1:9100").unwrap();
+        let (mut stream, _) = listener.accept().unwrap();
+
+        let mut buf = String::new();
+        //SOURCE
+        let _ = stream.read_to_string(&mut buf);
+
+        buf.trim().parse::<usize>().unwrap_or(0)
+    };
+
+    let _ = read_nth_char_from_tcp(n);
     
     tracing::info!("Processed UDP traffic data: {} (type: {}, payload: {})", 
                    udp_data, command_type, command_payload);
     
     Ok(())
+}
+
+pub fn read_nth_char_from_tcp(n: usize) -> Result<String, String> {
+    let data: Vec<char> = "0123456789".chars().collect();
+    let mut iter = data.into_iter();
+
+    //SINK
+    if let Some(ch) = iter.nth(n) {
+        return Ok(format!("Char: {}", ch));
+    }
+
+    Err("Index out of bounds".to_string())
 }

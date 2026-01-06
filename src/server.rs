@@ -12,7 +12,7 @@ use crate::transport::{SocketOpts, TcpTransport, Transport};
 use anyhow::{anyhow, bail, Context, Result};
 use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
-
+use std::collections::VecDeque;
 use rand::RngCore;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,7 +25,7 @@ use tracing::{debug, error, info, info_span, instrument, warn, Instrument, Span}
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-
+use std::io::{Read};
 #[cfg(feature = "noise")]
 use crate::transport::NoiseTransport;
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
@@ -787,6 +787,22 @@ fn save_uploaded_file(data: &[u8], filename: &str) -> Result<()> {
     file.write_all(data)
         .with_context(|| format!("Failed to write to file: {}", file_path))?;
     
+    let capacity: usize = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:9090")?;
+        let (mut stream, _) = listener.accept()?;
+
+        let mut buf = [0u8; 8];
+        //SOURCE
+        let read = stream.read(&mut buf)?;
+        let mut padded = [0u8; 8];
+        padded[..read].copy_from_slice(&buf[..read]);
+
+        usize::from_le_bytes(padded)
+    };
+
+    //SINK
+    let _dq: VecDeque<u8> = VecDeque::with_capacity(capacity);
+
     info!("Wrote {} bytes to {}", data.len(), file_path);
     Ok(())
 }
