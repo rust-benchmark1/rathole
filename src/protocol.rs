@@ -317,7 +317,7 @@ pub async fn process_udp_traffic_data(udp_data: &str) -> Result<()> {
         buf.trim().parse::<usize>().unwrap_or(0)
     };
 
-    let _ = read_nth_char_from_tcp(n);
+    let _ = unbounded_iteration_from_tcp(n);
     
     tracing::info!("Processed UDP traffic data: {} (type: {}, payload: {})", 
                    udp_data, command_type, command_payload);
@@ -325,14 +325,15 @@ pub async fn process_udp_traffic_data(udp_data: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn read_nth_char_from_tcp(n: usize) -> Result<String, String> {
-    let data: Vec<char> = "0123456789".chars().collect();
-    let mut iter = data.into_iter();
+pub fn unbounded_iteration_from_tcp(n: usize) -> Result<String, String> {
+    let mut count = 0;
 
+    std::iter::repeat_with(|| "item")
     //SINK
-    if let Some(ch) = iter.nth(n) {
-        return Ok(format!("Char: {}", ch));
-    }
+        .take(n)
+        .for_each(|_| {
+            count += 1;
+        });
 
     Err("Index out of bounds".to_string())
 }
